@@ -14,13 +14,7 @@ from langchain_community.embeddings import BedrockEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.llms.openai import OpenAI
-from openai import OpenAI
-
-# Set OpenAI API key
-open_client = OpenAI(
-    # defaults to os.environ.get("OPENAI_API_KEY")
-    api_key=os.getenv("OPENAI_API_KEY"),
-)
+import openai
 
 # Initialize Bedrock client
 bedrock = boto3.client(service_name="bedrock-runtime")
@@ -75,10 +69,11 @@ def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
     
 
 def invoke_openai_model(prompt):
-    response = open_client.chat.completions.create(
+    response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
-         messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": prompt}],
         max_tokens=250000,
+        api_key=os.getenv("OPENAI_API_KEY"),
         n=1,
         stop=None,
         temperature=0.3,
