@@ -11,14 +11,15 @@ from langchain.memory import ConversationBufferMemory
 from langchain.llms.bedrock import Bedrock
 from langchain_community.embeddings import BedrockEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.llms.openai import OpenAI
+import openai
+
+# Set OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize Bedrock client
 bedrock = boto3.client(service_name="bedrock-runtime")
-
-bedrock_embeddings = BedrockEmbeddings(
-    model_id='amazon.titan-embed-text-v1',  
-    client=bedrock
-)
 
 def data_ingestion(file_path):
     loader = PyPDFLoader(file_path)
@@ -30,13 +31,14 @@ def data_ingestion(file_path):
     return docs
 
 def get_vector_store(docs):
-    vectorstore_faiss = FAISS.from_documents(docs, bedrock_embeddings)
+    openai_embeddings = OpenAIEmbeddings()
+    vectorstore_faiss = FAISS.from_documents(docs, openai_embeddings)
     if not os.path.exists("faiss_index"):
         os.makedirs("faiss_index")
     vectorstore_faiss.save_local("faiss_index")
 
 def get_claude_llm():
-    llm = Bedrock(model_id="anthropic.claude-v2", client=bedrock)
+    llm = Bedrock(model_id="anthropic.claude-instant-v1", client=bedrock)
     return llm
 
 def get_llama3_llm():
@@ -45,6 +47,10 @@ def get_llama3_llm():
 
 def get_ai21_llm():
     return "ai21.jamba-instruct-v1:0"
+
+def get_openai_llm():
+    llm = OpenAI(model_name="gpt-4o-mini")
+    return llm
 
 def invoke_bedrock_model(prompt, model_id):
     body = json.dumps({
@@ -62,6 +68,18 @@ def invoke_bedrock_model(prompt, model_id):
     )
     result = json.loads(response.get('body').read())
     return result['choices'][0]['message']['content']
+
+def invoke_openai_model(prompt):
+    response = openai.Completion.create(
+        model="gpt-4o-mini",
+        prompt=prompt,
+        max_tokens=2048,
+        n=1,
+        stop=None,
+        temperature=0.7,
+        top_p=0.8
+    )
+    return response.choices[0].text.strip()
 
 prompt_template = """
 Human: Use the following pieces of context to provide a concise answer to the question at the end. Do not summarize the results. If you don't know the answer, just say that you don't know, don't try to make up an answer.
@@ -88,12 +106,20 @@ def get_response_llm(llm, vectorstore_faiss, query):
     return answer['result']
 
 def main():
-    st.set_page_config(page_title="DocQuery AI", layout="wide")
+    st.set_page_config(page_title="Nicole AI", layout="wide")
 
-    st.title("📄 DocQuery AI: AI-powered PDF Document Assistant 💼")
+    st.title("📄 Nicole AI: AI-powered Assistant 💼")
 
     st.sidebar.title("Select AI Model")
-    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Claude", "LLaMA3", "AI21"))
+    if "model_choice" not in st.session_state:
+        st.session_state.model_choice = "OpenAI GPT-4o-mini"
+
+    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Anthropic Claude Instant V1", "Meta Llama3-8b-instruct-v1", "AI21 Jamba-instruct-v1", "OpenAI GPT-4o-mini"))
+
+    if model_choice != st.session_state.model_choice:
+        st.session_state.model_choice = model_choice
+        st.session_state.ai_messages = []
+        st.session_state.memory = ConversationBufferMemory()
 
     tab1, tab2 = st.tabs(["Chat with AI", "Chat with Documents"])
 
@@ -115,13 +141,17 @@ def main():
                 message_placeholder = st.empty()
                 full_response = ""
 
-                if model_choice == "Claude":
+                if model_choice == "Anthropic Claude Instant V1":
                     llm = get_claude_llm()
-                    model = ConversationChain(llm=llm, verbose=True, memory=ConversationBufferMemory())
+                    model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
-                elif model_choice == "LLaMA3":
+                elif model_choice == "Meta Llama3-8b-instruct-v1":
                     llm = get_llama3_llm()
-                    model = ConversationChain(llm=llm, verbose=True, memory=ConversationBufferMemory())
+                    model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
+                    result = model.predict(input=ai_prompt)
+                elif model_choice == "OpenAI GPT-4o-mini":
+                    llm = get_openai_llm()
+                    model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
                 else:
                     model_id = get_ai21_llm()
@@ -156,18 +186,33 @@ def main():
             else:
                 st.sidebar.error("Please upload PDF files before updating vectors.")
 
+        # List and delete uploaded files
+        st.sidebar.title("Uploaded Files")
+        if not os.path.exists("data"):
+            os.makedirs("data")
+
+        files = os.listdir("data")
+        for file in files:
+            file_path = os.path.join("data", file)
+            if st.sidebar.button(f"Delete {file}", key=file):
+                os.remove(file_path)
+                st.sidebar.success(f"Deleted {file}")
+
         if st.button("Get Response"):
             if not os.path.exists("faiss_index/index.faiss"):
                 st.error("FAISS index file not found. Please update vectors first.")
                 return
 
             with st.spinner(f"Generating response with {model_choice}..."):
-                faiss_index = FAISS.load_local("faiss_index", bedrock_embeddings, allow_dangerous_deserialization=True)
+                faiss_index = FAISS.load_local("faiss_index", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
                 if model_choice == "Claude":
                     llm = get_claude_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
                 elif model_choice == "LLaMA3":
                     llm = get_llama3_llm()
+                    response = get_response_llm(llm, faiss_index, user_question)
+                elif model_choice == "OpenAI GPT-4o-mini":
+                    llm = get_openai_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
                 else:
                     model_id = get_ai21_llm()
