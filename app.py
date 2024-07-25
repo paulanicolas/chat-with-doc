@@ -49,7 +49,7 @@ def get_ai21_llm():
 def invoke_bedrock_model(prompt, model_id):
     body = json.dumps({
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 256,
+        "max_tokens": 2048,
         "top_p": 0.8,
         "temperature": 0.7,
     })
