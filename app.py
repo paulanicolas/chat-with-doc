@@ -9,6 +9,7 @@ from langchain.chains import RetrievalQA, ConversationChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.memory import ConversationBufferMemory
 from langchain.llms.bedrock import Bedrock
+from langchain_community.chat_models import BedrockChat
 from langchain_community.embeddings import BedrockEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.embeddings.openai import OpenAIEmbeddings
@@ -38,11 +39,11 @@ def get_vector_store(docs):
     vectorstore_faiss.save_local("faiss_index")
 
 def get_claude_llm():
-    llm = Bedrock(model_id="anthropic.claude-instant-v1", client=bedrock)
+    llm = BedrockChat(model_id="anthropic.claude-3-haiku-20240307-v1:0", client=bedrock)
     return llm
 
-def get_llama3_llm():
-    llm = Bedrock(model_id="meta.llama3-8b-instruct-v1:0", client=bedrock)
+def get_titan_text_lite_llm():
+    llm = Bedrock(model_id="amazon.titan-text-lite-v1", client=bedrock)
     return llm
 
 def get_ai21_llm():
@@ -52,12 +53,12 @@ def get_openai_llm():
     llm = OpenAI(model_name="gpt-4o-mini")
     return llm
 
-def invoke_bedrock_model(prompt, model_id):
+def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
     body = json.dumps({
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2048,
-        "top_p": 0.8,
-        "temperature": 0.7,
+        "max_tokens": max_tokens,
+        "top_p": 0.3,
+        "temperature": 0.3,
     })
 
     response = bedrock.invoke_model(
@@ -68,15 +69,16 @@ def invoke_bedrock_model(prompt, model_id):
     )
     result = json.loads(response.get('body').read())
     return result['choices'][0]['message']['content']
+    
 
 def invoke_openai_model(prompt):
     response = openai.Completion.create(
         model="gpt-4o-mini",
         prompt=prompt,
-        max_tokens=2048,
+        max_tokens=250000,
         n=1,
         stop=None,
-        temperature=0.7,
+        temperature=0.3,
         top_p=0.8
     )
     return response.choices[0].text.strip()
@@ -114,7 +116,7 @@ def main():
     if "model_choice" not in st.session_state:
         st.session_state.model_choice = "OpenAI GPT-4o-mini"
 
-    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Anthropic Claude Instant V1", "Meta Llama3-8b-instruct-v1", "AI21 Jamba-instruct-v1", "OpenAI GPT-4o-mini"))
+    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Anthropic Claude 3 Haiku", "Amazon Titan Text Lite", "AI21 Jamba-Instruct v1", "OpenAI GPT-4o-mini"))
 
     if model_choice != st.session_state.model_choice:
         st.session_state.model_choice = model_choice
@@ -141,12 +143,12 @@ def main():
                 message_placeholder = st.empty()
                 full_response = ""
 
-                if model_choice == "Anthropic Claude Instant V1":
+                if model_choice == "Anthropic Claude 3 Haiku":
                     llm = get_claude_llm()
                     model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
-                elif model_choice == "Meta Llama3-8b-instruct-v1":
-                    llm = get_llama3_llm()
+                elif model_choice == "Amazon Titan Text Lite":
+                    llm = get_titan_text_lite_llm()
                     model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
                 elif model_choice == "OpenAI GPT-4o-mini":
@@ -155,7 +157,7 @@ def main():
                     result = model.predict(input=ai_prompt)
                 else:
                     model_id = get_ai21_llm()
-                    result = invoke_bedrock_model(ai_prompt, model_id)
+                    result = invoke_bedrock_model(ai_prompt, model_id, max_tokens=4096)
 
                 for chunk in result.split(' '):  # Simulate stream of response with milliseconds delay
                     full_response += chunk + ' '
@@ -205,11 +207,11 @@ def main():
 
             with st.spinner(f"Generating response with {model_choice}..."):
                 faiss_index = FAISS.load_local("faiss_index", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
-                if model_choice == "Claude":
+                if model_choice == "Anthropic Claude 3 Haiku":
                     llm = get_claude_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
-                elif model_choice == "LLaMA3":
-                    llm = get_llama3_llm()
+                elif model_choice == "Amazon Titan Text Lite":
+                    llm = get_titan_text_lite_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
                 elif model_choice == "OpenAI GPT-4o-mini":
                     llm = get_openai_llm()
@@ -217,7 +219,7 @@ def main():
                 else:
                     model_id = get_ai21_llm()
                     context = ""  # Replace with the context extracted from the documents
-                    response = invoke_bedrock_model(f"Use the following context to answer the question: {context}\n\nQuestion: {user_question}", model_id)
+                    response = invoke_bedrock_model(f"Use the following context to answer the question: {context}\n\nQuestion: {user_question}", model_id, max_tokens=4096)
 
                 st.markdown(f"### {model_choice}'s Response")
                 st.write(response)
