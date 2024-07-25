@@ -77,14 +77,14 @@ def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
 def invoke_openai_model(prompt):
     response = open_client.chat.completions.create(
         model="gpt-4o-mini",
-        prompt=prompt,
+         messages=[{"role": "user", "content": prompt}],
         max_tokens=250000,
         n=1,
         stop=None,
         temperature=0.3,
         top_p=0.8
     )
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content.strip()
 
 prompt_template = """
 Human: Use the following pieces of context to provide a concise answer to the question at the end. Do not summarize the results. If you don't know the answer, just say that you don't know, don't try to make up an answer.
