@@ -75,7 +75,7 @@ def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
     
 
 def invoke_openai_model(prompt):
-    response = client.chat.completions.create(
+    response = client.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=250000,
