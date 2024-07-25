@@ -53,9 +53,8 @@ def get_ai21_llm():
     return "ai21.jamba-instruct-v1:0"
 
 def get_openai_llm():
-    return "gpt-4o-mini"
-    #llm = OpenAI(model="gpt-4o-mini")
-    #return llm
+    llm = OpenAI(model="gpt-4o-mini")
+    return llm
 
 def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
     body = json.dumps({
