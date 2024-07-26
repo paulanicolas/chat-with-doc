@@ -53,8 +53,7 @@ def get_ai21_llm():
     return "ai21.jamba-instruct-v1:0"
 
 def get_openai_llm():
-    llm = OpenAI(model="gpt-4o-mini")
-    return llm
+    return "gpt-4o-mini"
 
 def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
     body = json.dumps({
@@ -79,7 +78,6 @@ def invoke_openai_model(prompt):
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=250000,
-        api_key=os.getenv("OPENAI_API_KEY"),
         n=1,
         stop=None,
         temperature=0.3,
@@ -110,6 +108,14 @@ def get_response_llm(llm, vectorstore_faiss, query):
     )
     answer = qa({"query": query})
     return answer['result']
+
+def get_response_openai(vectorstore_faiss, query):
+    retriever = vectorstore_faiss.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+    docs = retriever.get_relevant_documents(query)
+    context = " ".join([doc.page_content for doc in docs])
+    prompt = PROMPT.format(context=context, question=query)
+    response = invoke_openai_model(prompt)
+    return response
 
 def main():
     st.set_page_config(page_title="Nicole AI", layout="wide")
@@ -156,9 +162,7 @@ def main():
                     model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
                 elif model_choice == "OpenAI GPT-4o-mini":
-                    llm = get_openai_llm()
-                    model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
-                    result = model.predict(input=ai_prompt)
+                    result = invoke_openai_model(ai_prompt)
                 else:
                     model_id = get_ai21_llm()
                     result = invoke_bedrock_model(ai_prompt, model_id, max_tokens=4096)
@@ -218,8 +222,7 @@ def main():
                     llm = get_titan_text_lite_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
                 elif model_choice == "OpenAI GPT-4o-mini":
-                    llm = get_openai_llm()
-                    response = get_response_llm(llm, faiss_index, user_question)
+                    response = get_response_openai(faiss_index, user_question)
                 else:
                     model_id = get_ai21_llm()
                     context = ""  # Replace with the context extracted from the documents
