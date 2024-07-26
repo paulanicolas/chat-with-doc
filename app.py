@@ -3,6 +3,9 @@ import time
 import json
 import boto3
 import streamlit as st
+import numpy as np
+import pickle
+import faiss
 from langchain.vectorstores import FAISS
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA, ConversationChain
@@ -40,6 +43,43 @@ def get_vector_store(docs):
     if not os.path.exists("faiss_index"):
         os.makedirs("faiss_index")
     vectorstore_faiss.save_local("faiss_index")
+
+ # Save the documents list for later retrieval
+    with open("faiss_index/documents.pkl", "wb") as f:
+        pickle.dump(docs, f)
+
+def generate_embedding(text):
+    openai_embeddings = OpenAIEmbeddings()
+    embedding = openai_embeddings.embed_query(text)
+    return np.array(embedding).astype('float32')
+
+def get_content_of_vectore_store(query):
+    # Load the FAISS index
+    index = faiss.read_index("faiss_index/index.faiss")
+
+    # Load the document metadata
+    with open("faiss_index/documents.pkl", "rb") as f:
+        documents = pickle.load(f)
+
+    # Define a query and generate its embedding
+    query_text = query
+    query_embedding = generate_embedding(query_text).reshape(1, -1)
+
+    # Search the FAISS index
+    k = 3  # Number of nearest neighbors to retrieve
+    distances, indices = index.search(query_embedding, k)
+
+    # Extract the documents using the indices
+    retrieved_documents = [documents[idx] for idx in indices[0]]
+
+    # Prepare the documents for the A121 Jamba Instruct model
+    context = "Context for A121 Jamba Instruct Model:\n"
+    for doc in retrieved_documents:
+        print(doc)
+        context += f"\nContent: {doc.page_content}\n\n"
+
+    return doc.page_content
+
 
 def get_claude_llm():
     """Initialize Claude LLM."""
@@ -242,9 +282,9 @@ def main():
                     #response = get_response_openai(faiss_index, user_question)
                     memory = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.ai_messages]
                     response = get_response_openai(faiss_index, user_question, memory)
-                else:
+                else:   
                     model_id = get_ai21_llm()
-                    context = ""  # Replace with the context extracted from the documents
+                    context = get_content_of_vectore_store(user_question)  # Replace with the context extracted from the documents
                     response = invoke_bedrock_model(f"Use the following context to answer the question: {context}\n\nQuestion: {user_question}", model_id, max_tokens=4096)
 
                 st.markdown(f"### {model_choice}'s Response")
