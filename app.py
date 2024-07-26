@@ -77,7 +77,7 @@ def invoke_openai_model(prompt):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=250000,
+        max_tokens=128000,
         n=1,
         stop=None,
         temperature=0.3,
