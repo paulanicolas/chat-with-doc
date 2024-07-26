@@ -75,7 +75,6 @@ def get_content_of_vectore_store(query):
     # Prepare the documents for the A121 Jamba Instruct model
     context = "Context for A121 Jamba Instruct Model:\n"
     for doc in retrieved_documents:
-        print(doc)
         context += f"\nContent: {doc.page_content}\n\n"
 
     return doc.page_content
