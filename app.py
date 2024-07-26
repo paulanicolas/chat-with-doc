@@ -13,25 +13,28 @@ from langchain_community.chat_models import BedrockChat
 from langchain_community.embeddings import BedrockEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.llms.openai import OpenAI
-import openai
-
-# Set OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+from openai import OpenAI
 
 # Initialize Bedrock client
 bedrock = boto3.client(service_name="bedrock-runtime")
 
+# Initialize OpenAI client
+client = OpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY"),
+)
+
 def data_ingestion(file_path):
+    """Load and split PDF documents into chunks."""
     loader = PyPDFLoader(file_path)
     documents = loader.load()
 
-    # Using Character splitter for better results with this PDF data set
+    # Use character splitter for better results with this PDF dataset
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     docs = text_splitter.split_documents(documents)
     return docs
 
 def get_vector_store(docs):
+    """Generate and save a FAISS vector store from documents."""
     openai_embeddings = OpenAIEmbeddings()
     vectorstore_faiss = FAISS.from_documents(docs, openai_embeddings)
     if not os.path.exists("faiss_index"):
@@ -39,21 +42,25 @@ def get_vector_store(docs):
     vectorstore_faiss.save_local("faiss_index")
 
 def get_claude_llm():
+    """Initialize Claude LLM."""
     llm = BedrockChat(model_id="anthropic.claude-3-haiku-20240307-v1:0", client=bedrock)
     return llm
 
 def get_titan_text_lite_llm():
+    """Initialize Titan Text Lite LLM."""
     llm = Bedrock(model_id="amazon.titan-text-lite-v1", client=bedrock)
     return llm
 
 def get_ai21_llm():
+    """Return AI21 model ID."""
     return "ai21.jamba-instruct-v1:0"
 
 def get_openai_llm():
-    llm = OpenAI(model_name="gpt-4o-mini")
-    return llm
+    """Return OpenAI model ID."""
+    return "gpt-4o-mini"
 
-def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
+def invoke_bedrock_model(prompt, model_id, max_tokens=250000):
+    """Invoke Bedrock model with given prompt."""
     body = json.dumps({
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
@@ -69,19 +76,20 @@ def invoke_bedrock_model(prompt, model_id, max_tokens = 250000):
     )
     result = json.loads(response.get('body').read())
     return result['choices'][0]['message']['content']
-    
 
-def invoke_openai_model(prompt):
-    response = openai.Completion.create(
+def invoke_openai_model(prompt, memory):
+    """Invoke OpenAI model with given prompt."""
+    response = client.chat.completions.create(
         model="gpt-4o-mini",
-        prompt=prompt,
-        max_tokens=250000,
+        #messages=[{"role": "user", "content": prompt}],
+        messages=memory + [{"role": "user", "content": prompt}],
+        max_tokens=4096,
         n=1,
         stop=None,
         temperature=0.3,
         top_p=0.8
     )
-    return response.choices[0].text.strip()
+    return response.choices[0].message.content.strip()
 
 prompt_template = """
 Human: Use the following pieces of context to provide a concise answer to the question at the end. Do not summarize the results. If you don't know the answer, just say that you don't know, don't try to make up an answer.
@@ -97,6 +105,7 @@ Assistant:
 PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
 
 def get_response_llm(llm, vectorstore_faiss, query):
+    """Generate response using LLM and vector store."""
     qa = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
@@ -106,6 +115,23 @@ def get_response_llm(llm, vectorstore_faiss, query):
     )
     answer = qa({"query": query})
     return answer['result']
+
+# def get_response_openai(vectorstore_faiss, query):
+#     """Generate response using OpenAI model and vector store."""
+#     retriever = vectorstore_faiss.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+#     docs = retriever.get_relevant_documents(query)
+#     context = " ".join([doc.page_content for doc in docs])
+#     prompt = PROMPT.format(context=context, question=query)
+#     response = invoke_openai_model(prompt)
+#     return response
+
+def get_response_openai(vectorstore_faiss, query, memory):
+    retriever = vectorstore_faiss.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+    docs = retriever.get_relevant_documents(query)
+    context = " ".join([doc.page_content for doc in docs])
+    prompt = PROMPT.format(context=context, question=query)
+    response = invoke_openai_model(prompt, memory)
+    return response
 
 def main():
     st.set_page_config(page_title="Nicole AI", layout="wide")
@@ -152,9 +178,8 @@ def main():
                     model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
                 elif model_choice == "OpenAI GPT-4o-mini":
-                    llm = get_openai_llm()
-                    model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
-                    result = model.predict(input=ai_prompt)
+                    memory = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.ai_messages]
+                    result = invoke_openai_model(ai_prompt, memory)
                 else:
                     model_id = get_ai21_llm()
                     result = invoke_bedrock_model(ai_prompt, model_id, max_tokens=4096)
@@ -214,8 +239,9 @@ def main():
                     llm = get_titan_text_lite_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
                 elif model_choice == "OpenAI GPT-4o-mini":
-                    llm = get_openai_llm()
-                    response = get_response_llm(llm, faiss_index, user_question)
+                    #response = get_response_openai(faiss_index, user_question)
+                    memory = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.ai_messages]
+                    response = get_response_openai(faiss_index, user_question, memory)
                 else:
                     model_id = get_ai21_llm()
                     context = ""  # Replace with the context extracted from the documents
