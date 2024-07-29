@@ -109,7 +109,7 @@ def invoke_bedrock_model(prompt, model_id, max_tokens=250000):
     body = json.dumps({
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
-        "top_p": 0.3,
+        "top_p": 0.8,
         "temperature": 0.3,
     })
 
@@ -137,7 +137,16 @@ def invoke_openai_model(prompt, memory):
     return response.choices[0].message.content.strip()
 
 prompt_template = """
-Human: Use the following pieces of context to provide a concise answer to the question at the end. Do not summarize the results. If you don't know the answer, just say that you don't know, don't try to make up an answer.
+Human: You are an AI designed to provide concise, accurate, and precise answers related to Environmental, Social, and Governance (ESG) topics. Do not include any additional commentary, chit-chat, or unnecessary information. Answer the questions directly and clearly. Below are examples of the type of answers I expect:
+Example Questions and Answers:
+ 
+Q: What is the reporting period in which the climate-related scenario analysis was carried out? A: January 1, 2022 to December 31, 2022
+Q: What are the Scope 1 greenhouse gas emissions for the organization? A: 100,000 metric tons of CO2e
+Q: Does the entity apply a carbon price in decision-making, and if so, how? A: Yes, the entity applies a carbon price of $50 per metric ton of CO2e in its investment decisions and scenario analysis.
+Q: Is the greenhouse gas emissions target a gross or net target, and if net, what is the associated gross target? A: The target is a net greenhouse gas emissions target of 50,000 metric tons of CO2e, with an associated gross target of 75,000 metric tons of CO2e.
+Adhere strictly to this format. 
+
+Use the following pieces of context to provide a concise answer to the question at the end. Do not summarize the results. If you don't know the answer, just say that you don't know, don't try to make up an answer.
 <context>
 {context}
 </context>
@@ -290,7 +299,14 @@ def main():
                 else:   
                     model_id = get_ai21_llm()
                     context = get_content_of_vectore_store(user_question)  # Replace with the context extracted from the documents
-                    response = invoke_bedrock_model(f"Use the following context to answer the question: {context}\n\nQuestion: {user_question}", model_id, max_tokens=4096)
+                    response = invoke_bedrock_model(f""" You are an AI designed to provide concise, accurate, and precise answers related to Environmental, Social, and Governance (ESG) topics. Do not include any additional commentary, chit-chat, or unnecessary information. Answer the questions directly and clearly. Below are examples of the type of answers I expect:
+Example Questions and Answers:
+ 
+Q: What is the reporting period in which the climate-related scenario analysis was carried out? A: January 1, 2022 to December 31, 2022
+Q: What are the Scope 1 greenhouse gas emissions for the organization? A: 100,000 metric tons of CO2e
+Q: Does the entity apply a carbon price in decision-making, and if so, how? A: Yes, the entity applies a carbon price of $50 per metric ton of CO2e in its investment decisions and scenario analysis.
+Q: Is the greenhouse gas emissions target a gross or net target, and if net, what is the associated gross target? A: The target is a net greenhouse gas emissions target of 50,000 metric tons of CO2e, with an associated gross target of 75,000 metric tons of CO2e.
+Adhere strictly to this format. Use the following context to answer the question: {context}\n\nQuestion: {user_question}""", model_id, max_tokens=4096)
 
                 st.markdown(f"### {model_choice}'s Response")
                 st.write(response)
