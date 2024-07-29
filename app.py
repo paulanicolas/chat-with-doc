@@ -19,7 +19,8 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from openai import OpenAI
 
 # Initialize Bedrock client
-bedrock = boto3.client(service_name="bedrock-runtime")
+bedrock_us_east_1 = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
+bedrock_us_west_2 = boto3.client(service_name="bedrock-runtime", region_name="us-west-2")
 
 # Initialize OpenAI client
 client = OpenAI(
@@ -82,17 +83,17 @@ def get_content_of_vectore_store(query):
 
 def get_claude_llm():
     """Initialize Claude LLM."""
-    llm = BedrockChat(model_id="anthropic.claude-3-haiku-20240307-v1:0", client=bedrock)
-    return llm
-
-def get_titan_text_lite_llm():
-    """Initialize Titan Text Lite LLM."""
-    llm = Bedrock(model_id="amazon.titan-text-lite-v1", client=bedrock)
+    llm = BedrockChat(model_id="anthropic.claude-3-haiku-20240307-v1:0", client=bedrock_us_east_1)
     return llm
 
 def get_ai21_llm():
     """Return AI21 model ID."""
     return "ai21.jamba-instruct-v1:0"
+
+def get_meta_llama_llm():
+    """Return Meta LLaMA model ID."""
+    llm = Bedrock(model_id="meta.llama3-1-405b-instruct-v1:0", client=bedrock_us_west_2)
+    return llm
 
 def get_openai_llm():
     """Return OpenAI model ID."""
@@ -100,6 +101,11 @@ def get_openai_llm():
 
 def invoke_bedrock_model(prompt, model_id, max_tokens=250000):
     """Invoke Bedrock model with given prompt."""
+    if model_id == 'meta.llama3-1-405b-instruct-v1:0':
+        client = bedrock_us_west_2
+    else:
+        client = bedrock_us_east_1
+
     body = json.dumps({
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
@@ -107,7 +113,7 @@ def invoke_bedrock_model(prompt, model_id, max_tokens=250000):
         "temperature": 0.3,
     })
 
-    response = bedrock.invoke_model(
+    response = client.invoke_model(
         body=body,
         modelId=model_id,
         accept="application/json",
@@ -181,7 +187,7 @@ def main():
     if "model_choice" not in st.session_state:
         st.session_state.model_choice = "OpenAI GPT-4o-mini"
 
-    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Anthropic Claude 3 Haiku", "Amazon Titan Text Lite", "AI21 Jamba-Instruct v1", "OpenAI GPT-4o-mini"))
+    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Anthropic Claude 3 Haiku", "Llama 3.1 405B Instruct", "AI21 Jamba-Instruct v1", "OpenAI GPT-4o-mini"))
 
     if model_choice != st.session_state.model_choice:
         st.session_state.model_choice = model_choice
@@ -212,8 +218,8 @@ def main():
                     llm = get_claude_llm()
                     model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
-                elif model_choice == "Amazon Titan Text Lite":
-                    llm = get_titan_text_lite_llm()
+                elif model_choice == "Llama 3.1 405B Instruct":
+                    llm = get_meta_llama_llm()
                     model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
                 elif model_choice == "OpenAI GPT-4o-mini":
@@ -274,8 +280,8 @@ def main():
                 if model_choice == "Anthropic Claude 3 Haiku":
                     llm = get_claude_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
-                elif model_choice == "Amazon Titan Text Lite":
-                    llm = get_titan_text_lite_llm()
+                elif model_choice == "Llama 3.1 405B Instruct":
+                    llm = get_meta_llama_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
                 elif model_choice == "OpenAI GPT-4o-mini":
                     #response = get_response_openai(faiss_index, user_question)
