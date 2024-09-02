@@ -83,7 +83,7 @@ def get_content_of_vectore_store(query):
 
 def get_claude_llm():
     """Initialize Claude LLM."""
-    llm = BedrockChat(model_id="anthropic.claude-3-haiku-20240307-v1:0", client=bedrock_us_east_1)
+    llm = BedrockChat(model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", client=bedrock_us_east_1)
     return llm
 
 def get_ai21_llm():
@@ -196,7 +196,7 @@ def main():
     if "model_choice" not in st.session_state:
         st.session_state.model_choice = "OpenAI GPT-4o-mini"
 
-    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Anthropic Claude 3 Haiku", "Llama 3.1 405B Instruct", "AI21 Jamba-Instruct v1", "OpenAI GPT-4o-mini"))
+    model_choice = st.sidebar.radio("Choose a model to generate responses:", ("Anthropic Claude 3.5 Sonnet", "Llama 3.1 405B Instruct", "AI21 Jamba-Instruct v1", "OpenAI GPT-4o-mini"))
 
     if model_choice != st.session_state.model_choice:
         st.session_state.model_choice = model_choice
@@ -223,7 +223,7 @@ def main():
                 message_placeholder = st.empty()
                 full_response = ""
 
-                if model_choice == "Anthropic Claude 3 Haiku":
+                if model_choice == "Anthropic Claude 3.5 Sonnet":
                     llm = get_claude_llm()
                     model = ConversationChain(llm=llm, verbose=True, memory=st.session_state.memory)
                     result = model.predict(input=ai_prompt)
@@ -286,7 +286,7 @@ def main():
 
             with st.spinner(f"Generating response with {model_choice}..."):
                 faiss_index = FAISS.load_local("faiss_index", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
-                if model_choice == "Anthropic Claude 3 Haiku":
+                if model_choice == "Anthropic Claude 3.5 Sonnet":
                     llm = get_claude_llm()
                     response = get_response_llm(llm, faiss_index, user_question)
                 elif model_choice == "Llama 3.1 405B Instruct":
