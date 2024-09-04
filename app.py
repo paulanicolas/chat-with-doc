@@ -136,8 +136,46 @@ def invoke_openai_model(prompt, memory):
     )
     return response.choices[0].message.content.strip()
 
+prompt_template_llama = """
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+The following is a conversation between a human and an AI assistant.
+The assistant is designed to provide concise, accurate, and precise answers related to Environmental, Social, and Governance (ESG) topics. The assistant will not include any additional commentary, chit-chat, or unnecessary information. It will answer the questions directly and clearly. Below are examples of the type of answers expected:
+
+Example Questions and Answers:
+
+Q: What is the reporting period in which the climate-related scenario analysis was carried out?  
+A: January 1, 2022 to December 31, 2022
+
+Q: What are the Scope 1 greenhouse gas emissions for the organization?  
+A: 100,000 metric tons of CO2e
+
+Q: Does the entity apply a carbon price in decision-making, and if so, how?  
+A: Yes, the entity applies a carbon price of $50 per metric ton of CO2e in its investment decisions and scenario analysis.
+
+Q: Is the greenhouse gas emissions target a gross or net target, and if net, what is the associated gross target?  
+A: The target is a net greenhouse gas emissions target of 50,000 metric tons of CO2e, with an associated gross target of 75,000 metric tons of CO2e.
+
+Adhere strictly to this format.
+
+You will play the role of the assistant.
+You have access to the following pieces of context:
+<context>
+{context}
+</context>
+
+Use this context to provide a concise answer to the question at the end. Do not summarize the results. If you don't know the answer, just say that you don't know, don't try to make up an answer.
+
+<|eot_id|>
+<|start_header_id|>user<|end_header_id|>
+Question: {question}
+<|eot_id|>
+<|start_header_id|>assistant<|end_header_id|>
+Thought: I will review the provided context to answer the question.
+Final Answer: 
+"""
+
 prompt_template = """
-Human: You are an AI designed to provide concise, accurate, and precise answers related to Environmental, Social, and Governance (ESG) topics. Do not include any additional commentary, chit-chat, or unnecessary information. Answer the questions directly and clearly. Below are examples of the type of answers I expect:
+Human: You are an AI designed to provide concise, accurate, and precise answers related to Environmental, Social, and Governance (ESG) topics. Do not include any additional commentary, chit-chat, or unnecessary information. Answer the questions directly and clearly. The answer should always be in paragraph only, do not make it in bullet points. Below are examples of the type of answers I expect:
 Example Questions and Answers:
  
 Q: What is the reporting period in which the climate-related scenario analysis was carried out? A: January 1, 2022 to December 31, 2022
@@ -158,7 +196,12 @@ Assistant:
 
 PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
 
-def get_response_llm(llm, vectorstore_faiss, query):
+def get_response_llm(llm, vectorstore_faiss, query, model_choice = ''):
+    if model_choice == 'Llama 3.1 405B Instruct':
+        PROMPT = PromptTemplate(template=prompt_template_llama, input_variables=["context", "question"])
+    else:
+        PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+
     """Generate response using LLM and vector store."""
     qa = RetrievalQA.from_chain_type(
         llm=llm,
@@ -291,7 +334,7 @@ def main():
                     response = get_response_llm(llm, faiss_index, user_question)
                 elif model_choice == "Llama 3.1 405B Instruct":
                     llm = get_meta_llama_llm()
-                    response = get_response_llm(llm, faiss_index, user_question)
+                    response = get_response_llm(llm, faiss_index, user_question, model_choice)
                 elif model_choice == "OpenAI GPT-4o-mini":
                     #response = get_response_openai(faiss_index, user_question)
                     memory = [{"role": msg["role"], "content": msg["content"]} for msg in st.session_state.ai_messages]
