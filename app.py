@@ -238,21 +238,43 @@ Assistant:
 """
 
 prompt_template = """
-I'm going to give you a IFRS Sustainability Disclosures report. Read the report carefully, because I'm going to ask you a question about it. Here is the report.
+You are an expert in ESG reporting and compliance, specializing in IFRS, GRI, and ESRS standards. Skip any preamble and focus directly on answering the question.
+
 <report>{context}</report>
 
-Please read the report carefully and analyze all aspects.
-
-Then, I will ask you some questions about this report. Please answer based on your analysis of the report. Your answers should meet the following requirements:
-
-- Answers should be based on the content of the report itself, avoiding excessive embellishment or speculation.
-- Provide direct answer from the report. Do not include any additional commentary, chit-chat, or unnecessary information.
-- If a question goes beyond the scope discussed in the report, please clearly state that it cannot be determined from the report's content.
+Answer the following questions based on the report:
+ 
+- For governance, strategy, or monitoring questions, structure responses with a **paragraph first** to provide a comprehensive overview. If there are multiple points, use lists after the paragraph or main headings for easy readability.
+- Use formal, professional language in compliance with IFRS, GRI, and ESRS standards.
+- Focus on relevant metrics, and address specific frameworks (IFRS for financials, GRI for sustainability, ESRS for European regulations).
+- If data is missing or unavailable, clearly state that you don't have the data or you don't know the answer.
+- If the report doesn't provide enough information, state that the answer cannot be determined based on the data provided.
+- Provide concise, structured answers (lists, paragraphs, short explanations).
 
 Question: {question}
 
 Assistant:
 """
+
+# prompt_template = """
+# Skip the preamble and go directly to analyzing the content. I'm going to give you a report. Read the report carefully, because I'm going to ask you a question about it. Here is the report.
+# <report>{context}</report>
+ 
+# Please read the report carefully and analyze all aspects.
+ 
+# Then, I will ask you some questions about this report. Please answer based on your analysis of the report. Your answers should meet the following requirements:
+ 
+# - Answers should be based on the content of the report itself, avoiding excessive embellishment or speculation.
+# - Do not include any additional commentary, chit-chat, or unnecessary information.
+# - If a question goes beyond the scope discussed in the report, please clearly state that it cannot be determined from the report's content.
+# - Use formal, professional language that complies with IFRS, GRI, and ESRS standards. Write clearly for both technical and non-technical readers, with a focus on compliance and relevant metrics.
+# - Provide clear, accurate, and concise answers, using structured formats where needed (e.g., lists, paragraphs, short explanations).
+# - If applicable, highlight how the question/requirement aligns with sustainability goals, financial outcomes, or regulatory needs.
+ 
+# Question: {question}
+ 
+# Assistant:
+# """
 
 PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
 
