@@ -20,7 +20,7 @@ from openai import OpenAI
 from anthropic_bedrock import AnthropicBedrock
 
 # Initialize Bedrock client
-bedrock_us_east_1 = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
+bedrock_us_east_1 = boto3.client(service_name="bedrock-runtime", region_name="eu-central-1")
 bedrock_us_west_2 = boto3.client(service_name="bedrock-runtime", region_name="us-west-2")
 
 # Initialize OpenAI client
