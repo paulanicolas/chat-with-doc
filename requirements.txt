@@ -9,3 +9,4 @@ openai==1.37.0
 cryptography>=3.1
 tiktoken
 anthropic-bedrock
+httpx==0.27.2
